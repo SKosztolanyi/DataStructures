@@ -48,25 +48,63 @@ class TableInfo:
         self.table_id = table_id
         self.parent_id = parent_id
         self.nrows = nrows
-        self.rank = 1
+        self.rank = 0
         
     def find(self, table_id, tables_list):
         if table_id != self.parent_id:
+            return 
+        else:
             self.parent_id = self.find(tables_list[table_id].parent_id, tables_list)
-        return self.parent_id
+            return self.parent_id
+ 
+# possible solution to compress path:
+    # 1. find parent id of every table that is not parent itself
+    # 2. add table ID that is not a parent_id to a list of table ids
+    # 3. for each table id in a list, update it's parent id to the root parent
+    #    with update_parent() function
     
-    def find_parent_table(self, table_id, tables_list):
+    def find_root_id(self, table_id, tables_list):
         # finds parent table 
         # and compresses path to point to root parent table
         if table_id != self.parent_id:
-            self.parent_id = self.find(tables_list[table_id].parent_id, tables_list)
-        return tables_list[self.parent_id]
+            self.parent_id = self.find_root_id(self.parent_id, tables_list)
+        #return tables_list[table_id].parent_id
+        return self.parent_id
     
     def simple_merge(self, other, tables_list):
         # helper function
         tables_list[self.parent_id].nrows += tables_list[other.parent_id].nrows
         tables_list[other.parent_id].nrows = 0
         other.parent_id = self.parent_id
+        return tables_list[self.parent_id].nrows
+    
+    def merge_ta(self, other, tables_list):
+        root_self = tables_list[self.find_root_id(self.table_id, tables_list)]
+        root_other = tables_list[other.find_root_id(other.table_id, tables_list)]
+        
+        print('self', root_self.parent_id, 'other', root_other.parent_id)
+
+        
+        if root_self.parent_id == root_other.parent_id:
+            return root_self.nrows
+        
+        elif root_self.rank == root_other.rank:
+            root_self.nrows += root_other.nrows
+            root_other.nrows = 0
+            root_other.parent_id = root_self.parent_id
+            root_self.rank += 1
+        
+        elif root_self.rank < root_other.rank:
+            root_other.nrows += root_self.nrows
+            root_self.nrows = 0
+            root_self.parent_id = root_other.parent_id
+        else:
+            # join other to self
+            root_self.nrows += root_other.nrows
+            root_other.nrows = 0
+            root_other.parent_id = root_self.parent_id
+        return max(root_self.nrows, 
+                   root_other.nrows)
     
     def merge_sa(self, other, tables_list):
         # self.nrows = self.nrows + other.nrows
@@ -101,7 +139,32 @@ class TableInfo:
             tables_list[self.parent_id].nrows += tables_list[other.parent_id].nrows
             tables_list[other.parent_id].nrows = 0
             other.parent_id = self.parent_id
-        return tables_list[self.parent_id].nrows
+        return max(tables_list[self.parent_id].nrows, 
+                   tables_list[other.parent_id].nrows)
+
+
+
+# does path compression work in find_parent_table?
+m, n = 4, 5
+parent = list(range(5))
+rows = [1, 1, 1, 1, 1]
+mergelist = [[3, 5], [4, 2], [4, 5], [4, 1]]
+ans=1
+
+tables_list = [TableInfo(table_id, parent_id, nrows)
+              for table_id, parent_id, nrows in zip(parent, parent, rows)]
+
+for i in range(m):
+    # destination, source = map(int, sys.stdin.readline().split())
+
+    source, destination = mergelist[i][0], mergelist[i][1]
+    print(tables_list[source-1].find_root_id(source-1, tables_list),
+          tables_list[destination-1].find_root_id(destination-1, tables_list))
+    maxrows = tables_list[source-1].merge_ta(tables_list[destination-1], tables_list)
+    ans = max(ans, maxrows)
+    print(ans)
+    print('', vars(tables_list[source-1]), '\n', vars(tables_list[destination-1]))
+
 
 
 
